@@ -1,0 +1,60 @@
+resilience4j:
+  circuitbreaker:
+    configs:
+      defecto: 
+        sliding-window-size: 6
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 20s
+        permitted-number-of-calls-in-half-open-state: 4
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2s 
+    instances:
+      productsBreaker:
+        base-config: defecto
+  timelimiter:
+    configs:
+      defecto:
+        timeout-duration: 2s
+    instances:
+      productsBreaker:
+        base-config: defecto
+        
+eureka:
+  client:
+    service-url:
+      defaultZone: http://127.0.0.1:8761/eureka
+server:
+  port: 8090
+spring:
+  application:
+    name: spring-cloud-gateway
+  cloud:
+    gateway:
+      routes:
+      - id: service-product
+        uri: lb://service-product
+        predicates:
+          - Path=/product/**
+          - Method=GET, POST
+       # - Header=token, 123
+       # - Header=Content-Type,application/json
+       #  Si pongo Query=color, verde obligo a que el param color venga con value verde. Si lo dejo como está, solo espera un param con ese nombre
+       # - Query=color
+       # - Cookie=color, azul
+        filters:
+          - name: CircuitBreaker
+            args:
+              name: productsBreaker
+              statusCodes: 500
+              fallbackUri: forward:/item
+          - StripPrefix=1
+      - id: service-item
+        uri: lb://service-item
+        predicates:
+          - Path=/item/**
+        filters:
+          - StripPrefix=1
+          - AddRequestHeader=Token-Request, 12345
+          - AddResponseHeader=Token-Response, 12345567
+          - SetResponseHeader=Content-Type, text/plain
+          - AddRequestParameter=nombre, Nahuelito
